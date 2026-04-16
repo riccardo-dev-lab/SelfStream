@@ -15,7 +15,8 @@ const HEADERS: Record<string, string> = {
 
 export const CINEMACITY_HEADERS = HEADERS;
 
-const TMDB_API_KEY = '1865f43a0549ca50d341dd9ab8b29f49';
+import { config } from './config';
+const TMDB_API_KEY = config.tmdbApiKey;
 
 const atobPolyfill = (str: string): string => {
     try {

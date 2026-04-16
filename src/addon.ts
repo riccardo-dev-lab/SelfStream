@@ -3,7 +3,7 @@ import { getVixSrcStreams } from './vixsrc';
 import { getVixCloudStreams } from './vixcloud';
 import { getCinemaCityStreams, extractFreshStreamUrl, FreshStream, SubtitleTrack } from './cinemacity';
 import { decodeProxyToken, resolveUrl, makeProxyToken, getAddonBase } from './proxy';
-import { decodeConfig, UserConfig, DEFAULT_CONFIG, config } from './config';
+import { decodeConfig, UserConfig, DEFAULT_CONFIG, config, AVAILABLE_LANGUAGES } from './config';
 import { request } from 'undici';
 import { pipeline } from 'stream/promises';
 const express = require('express');
@@ -59,6 +59,11 @@ const LABEL_TO_LANG: Record<string, string> = {
     'ukrainian': 'uk', 'українська': 'uk',
     'vietnamese': 'vi', 'tiếng việt': 'vi',
 };
+
+function getLangInfo(langCode: string): { flag: string; label: string } {
+    const found = AVAILABLE_LANGUAGES.find(l => l.code === langCode);
+    return found ? { flag: found.flag, label: found.label } : { flag: '🌐', label: langCode.toUpperCase() };
+}
 
 function guessLangCode(label: string): string {
     const lower = label.toLowerCase().replace(/\s*\(.*$/, '').trim();
@@ -152,8 +157,13 @@ async function handleStream(type: string, id: string, userConfig: UserConfig): P
                 try {
                     const vixStreams = await getVixSrcStreams(tmdbId, season, episode, userConfig.vixLang);
                     for (const s of vixStreams) {
+                        const { flag, label } = getLangInfo(userConfig.vixLang);
+                        const quality = s.quality || '1080p';
                         s.name = 'VixSrc 🤌';
-                        s.title = `🎬 ${mediaTitle || 'Stream'}`;
+                        s.title = `🎬 ${mediaTitle || 'Stream'}\n${flag} ${label} · ${quality}`;
+                        if (type === 'series' && season) {
+                            s.behaviorHints = { bingeGroup: `ss-vix-${tmdbId}-s${season}` };
+                        }
                     }
                     allStreams.push(...vixStreams);
                 } catch (err) {
@@ -166,8 +176,12 @@ async function handleStream(type: string, id: string, userConfig: UserConfig): P
                 try {
                     const ccStreams = await getCinemaCityStreams(tmdbId, type, season, episode, userConfig.cinemacityLang);
                     for (const s of ccStreams) {
+                        const { flag, label } = getLangInfo(userConfig.cinemacityLang);
                         s.name = 'CinemaCity 🤌';
-                        s.title = `🎬 ${mediaTitle || 'Stream'}`;
+                        s.title = `🎬 ${mediaTitle || 'Stream'}\n${flag} ${label} · HD`;
+                        if (type === 'series' && season) {
+                            s.behaviorHints = { bingeGroup: `ss-cc-${tmdbId}-s${season}` };
+                        }
                     }
                     allStreams.push(...ccStreams);
                 } catch (err) {
@@ -517,7 +531,12 @@ app.get('/proxy/hls/manifest.m3u8', async (req: any, res: any) => {
             if (variants.length > 0) {
                 // Sort by resolution then bandwidth
                 variants.sort((a, b) => (b.height - a.height) || (b.bandwidth - a.bandwidth));
-                const best = variants[0];
+                // Keep only 1080p+; fall back to best available if none qualify
+                const hqVariants = variants.filter(v => v.height >= 1080);
+                if (hqVariants.length === 0) {
+                    console.log(`[HLS Proxy] No 1080p+ variant found (best: ${variants[0].height}p), using best available`);
+                }
+                const best = hqVariants.length > 0 ? hqVariants[0] : variants[0];
 
                 const result = ['#EXTM3U'];
                 for (const tag of otherTags) result.push(tag);

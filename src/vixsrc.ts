@@ -47,7 +47,7 @@ async function getEmbedUrlFromApi(tmdbId: string, season?: string, episode?: str
     }
 }
 
-export async function getVixSrcStreams(tmdbId: string, season?: string, episode?: string, preferredLang?: string): Promise<{name: string, title: string, url: string}[]> {
+export async function getVixSrcStreams(tmdbId: string, season?: string, episode?: string, preferredLang?: string): Promise<any[]> {
     try {
         const siteOrigin = `https://${config.vixsrcDomain}`;
         
@@ -133,13 +133,19 @@ export async function getVixSrcStreams(tmdbId: string, season?: string, episode?
 
         console.log(`[VixSrc] Final stream URL: ${finalStreamUrl}`);
 
+        if (!canPlayFHD) {
+            console.log('[VixSrc] Stream is not FHD — skipped (quality filter)');
+            return [];
+        }
+
         // 5. Wrap through local HLS proxy
         const proxyToken = makeProxyToken(finalStreamUrl, VIXSRC_HEADERS);
 
         return [{
-            name: "SC 🤌",
-            title: "VIX 1080 🤌",
-            url: `/proxy/hls/manifest.m3u8?token=${proxyToken}`
+            name: 'VixSrc 🤌',
+            title: 'Stream',
+            url: `/proxy/hls/manifest.m3u8?token=${proxyToken}`,
+            quality: '1080p'
         }];
 
     } catch(err) {
