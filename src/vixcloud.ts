@@ -177,7 +177,7 @@ async function getEmbedUrl(animePath: string, episodeNum: number): Promise<strin
 }
 
 // ── Step 6: Extract HLS manifest from VixCloud embed ──
-async function extractVixCloudManifest(embedUrl: string): Promise<string | null> {
+export async function extractVixCloudManifest(embedUrl: string): Promise<string | null> {
     console.log(`[VixCloud] Extracting manifest from embed: ${embedUrl}`);
     
     // Parse input URL for fallback tokens

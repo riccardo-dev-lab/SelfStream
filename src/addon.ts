@@ -2,6 +2,7 @@ const { addonBuilder } = require('stremio-addon-sdk');
 import { getVixSrcStreams } from './vixsrc';
 import { getVixCloudStreams } from './vixcloud';
 import { getCinemaCityStreams, extractFreshStreamUrl, FreshStream, SubtitleTrack } from './cinemacity';
+import { getSCStreams } from './streamingcommunity';
 import { decodeProxyToken, resolveUrl, makeProxyToken, getAddonBase } from './proxy';
 import { decodeConfig, UserConfig, DEFAULT_CONFIG, config, AVAILABLE_LANGUAGES } from './config';
 import { request } from 'undici';
@@ -186,6 +187,25 @@ async function handleStream(type: string, id: string, userConfig: UserConfig): P
                     allStreams.push(...ccStreams);
                 } catch (err) {
                     console.error("[CinemaCity] error:", err);
+                }
+            }
+
+            // ── StreamingCommunity ──
+            if (userConfig.scEnabled) {
+                try {
+                    const scStreams = await getSCStreams(tmdbId, type, season, episode, userConfig.scLang);
+                    for (const s of scStreams) {
+                        const { flag, label } = getLangInfo(userConfig.scLang);
+                        const quality = s.quality || '1080p';
+                        s.name = 'StreamingCommunity 🤌';
+                        s.title = `🎬 ${mediaTitle || 'Stream'}\n${flag} ${label} · ${quality}`;
+                        if (type === 'series' && season) {
+                            s.behaviorHints = { bingeGroup: `ss-sc-${tmdbId}-s${season}` };
+                        }
+                    }
+                    allStreams.push(...scStreams);
+                } catch (err) {
+                    console.error("[SC] error:", err);
                 }
             }
         }

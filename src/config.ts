@@ -1,7 +1,8 @@
 export const config = {
   tmdbApiKey: process.env.TMDB_API_KEY || "YOUR_TMDB_API_KEY_HERE",
   vixsrcDomain: "vixsrc.to",
-  vixcloudDomain: "vixcloud.co"
+  vixcloudDomain: "vixcloud.co",
+  scDomain: process.env.SC_DOMAIN || "streamingcommunityz.moe",
 };
 
 export const AVAILABLE_LANGUAGES = [
@@ -53,6 +54,8 @@ export interface UserConfig {
   cinemacityEnabled: boolean;
   cinemacityLang: string;
   animeunityEnabled: boolean;
+  scEnabled: boolean;
+  scLang: string;
 }
 
 export const DEFAULT_CONFIG: UserConfig = {
@@ -60,7 +63,9 @@ export const DEFAULT_CONFIG: UserConfig = {
   vixLang: 'en',
   cinemacityEnabled: true,
   cinemacityLang: 'en',
-  animeunityEnabled: false
+  animeunityEnabled: false,
+  scEnabled: true,
+  scLang: 'en',
 };
 
 export function encodeConfig(cfg: UserConfig): string {
@@ -75,7 +80,9 @@ export function decodeConfig(token: string): UserConfig {
       vixLang: parsed.vixLang || DEFAULT_CONFIG.vixLang,
       cinemacityEnabled: parsed.cinemacityEnabled === true,
       cinemacityLang: parsed.cinemacityLang || DEFAULT_CONFIG.cinemacityLang,
-      animeunityEnabled: parsed.animeunityEnabled === true
+      animeunityEnabled: parsed.animeunityEnabled === true,
+      scEnabled: parsed.scEnabled === true,
+      scLang: parsed.scLang || DEFAULT_CONFIG.scLang,
     };
   } catch {
     return { ...DEFAULT_CONFIG };
