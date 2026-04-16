@@ -26,14 +26,14 @@ const headerCache = new Map<string, { headers: Record<string, string>; expire: n
 let headerIdCounter = 0;
 
 function registerHeaders(headers: Record<string, string>, ttlMs: number): string {
-    // Reuse existing ID if same headers already cached
+    const now = Date.now();
+    // Reuse existing ID if same headers already cached; purge expired entries lazily
     for (const [id, entry] of headerCache) {
-        if (entry.expire > Date.now() && JSON.stringify(entry.headers) === JSON.stringify(headers)) {
-            return id;
-        }
+        if (entry.expire <= now) { headerCache.delete(id); continue; }
+        if (JSON.stringify(entry.headers) === JSON.stringify(headers)) return id;
     }
     const id = 'h' + (++headerIdCounter);
-    headerCache.set(id, { headers, expire: Date.now() + ttlMs });
+    headerCache.set(id, { headers, expire: now + ttlMs });
     return id;
 }
 
@@ -45,14 +45,6 @@ function lookupHeaders(id: string): Record<string, string> | null {
     }
     return entry.headers;
 }
-
-// Cleanup expired entries periodically
-setInterval(() => {
-    const now = Date.now();
-    for (const [id, entry] of headerCache) {
-        if (entry.expire < now) headerCache.delete(id);
-    }
-}, 10 * 60 * 1000);
 
 export function makeProxyToken(url: string, headers: Record<string, string>, ttlMs: number = 6 * 3600 * 1000): string {
     const hid = registerHeaders(headers, ttlMs);

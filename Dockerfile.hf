@@ -6,14 +6,14 @@ RUN apk add --no-cache git
 WORKDIR /app
 
 # Clona il repository direttamente nella cartella /app
-RUN git clone https://github.com/vostrousergithub/vostroforkname .
+RUN git clone https://github.com/riccardo-dev-lab/SelfStream .
 
 # Installa le dipendenze
 RUN npm install
 
 # HF usa la porta 7860
-ENV PORT=7860
-EXPOSE 7860
+ENV PORT=7000
+EXPOSE 7000
 
 # Compila l'addon
 RUN npm run build

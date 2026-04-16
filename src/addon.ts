@@ -3,7 +3,7 @@ import { getVixSrcStreams } from './vixsrc';
 import { getVixCloudStreams } from './vixcloud';
 import { getCinemaCityStreams, extractFreshStreamUrl, FreshStream, SubtitleTrack } from './cinemacity';
 import { decodeProxyToken, resolveUrl, makeProxyToken, getAddonBase } from './proxy';
-import { decodeConfig, UserConfig, DEFAULT_CONFIG } from './config';
+import { decodeConfig, UserConfig, DEFAULT_CONFIG, config } from './config';
 import { request } from 'undici';
 import { pipeline } from 'stream/promises';
 const express = require('express');
@@ -130,7 +130,7 @@ async function handleStream(type: string, id: string, userConfig: UserConfig): P
             // Fetch localized title from TMDB once for all sources
             let mediaTitle = '';
             try {
-                const TMDB_KEY = '1865f43a0549ca50d341dd9ab8b29f49';
+                const TMDB_KEY = config.tmdbApiKey;
                 const tmdbType = type === 'series' ? 'tv' : 'movie';
                 // Pick the best lang between vix and cc (prefer whichever is enabled)
                 const titleLang = userConfig.cinemacityEnabled ? userConfig.cinemacityLang
