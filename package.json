@@ -7,7 +7,7 @@
   "scripts": {
     "build": "npx tsc",
     "start": "node dist/addon.js",
-    "dev": "ts-node -O \"{\\\"module\\\":\\\"commonjs\\\", \\\"verbatimModuleSyntax\\\":false}\" src/addon.ts"
+    "dev": "npx ts-node -O \"{\\\"module\\\":\\\"commonjs\\\", \\\"verbatimModuleSyntax\\\":false}\" src/addon.ts"
   },
   "keywords": [],
   "author": "",

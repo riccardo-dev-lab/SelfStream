@@ -3,7 +3,29 @@
     "allow": [
       "WebFetch(domain:streamingcommunityz.moe)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(npm install *)",
+      "Skill(update-config)",
+      "Bash(curl *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -X POST 'https://api.vercel.com/v1/integrations/deploy/prj_yi5R2CiRKJReuyQy0HBjttPqLeOP/Xlf2MULr73' 2>/dev/null || true",
+            "if": "Bash(git push*)",
+            "timeout": 30,
+            "statusMessage": "Triggering Vercel redeploy...",
+            "async": true
+          }
+        ]
+      }
     ]
   }
 }
