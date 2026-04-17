@@ -85,7 +85,6 @@ async function inertiaGet(url: string, session: SCSession): Promise<any> {
     const headers: Record<string, string> = {
         ...SC_BASE_HEADERS,
         'Accept': 'text/html, application/xhtml+xml',
-        'Content-Type': 'application/json',
         'Cookie': session.cookie,
         'X-Inertia': 'true',
         'X-Requested-With': 'XMLHttpRequest',
@@ -96,17 +95,28 @@ async function inertiaGet(url: string, session: SCSession): Promise<any> {
 
     const { body, statusCode } = await request(url, { headers });
 
-    // 409 = Inertia version mismatch — riprova senza versione
+    if (statusCode === 200) return await body.json();
+
+    // 409 = Inertia version mismatch — fallback: GET normale, parsa data-page dall'HTML
     if (statusCode === 409) {
-        console.log('[SC] Inertia version mismatch (409), retrying without version...');
-        delete headers['X-Inertia-Version'];
-        const { body: body2, statusCode: sc2 } = await request(url, { headers });
-        if (sc2 !== 200) throw new Error(`[SC] HTTP ${sc2} on retry`);
-        return await body2.json();
+        console.log('[SC] Inertia 409, falling back to full HTML parse...');
+        await body.text(); // drain
+        const { body: body2, statusCode: sc2 } = await request(url, {
+            headers: {
+                ...SC_BASE_HEADERS,
+                'Accept': 'text/html,application/xhtml+xml',
+                'Cookie': session.cookie,
+                'Referer': url,
+            },
+        });
+        if (sc2 !== 200) throw new Error(`[SC] HTTP ${sc2} on HTML fallback`);
+        const html = await body2.text();
+        const match = html.match(/data-page="([^"]+)"/);
+        if (!match) throw new Error('[SC] No data-page attribute in HTML fallback');
+        return JSON.parse(match[1].replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&amp;/g, '&'));
     }
 
-    if (statusCode !== 200) throw new Error(`[SC] HTTP ${statusCode} for ${url}`);
-    return await body.json();
+    throw new Error(`[SC] HTTP ${statusCode} for ${url}`);
 }
 
 // ── 3. Ricerca titolo ────────────────────────────────────────────────────────
