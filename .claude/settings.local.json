@@ -13,7 +13,8 @@
       "Bash(gh run *)",
       "Bash(npx vercel *)",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d['packages'].get\\('node_modules/typescript', {}\\).get\\('version', 'NOT FOUND'\\)\\)\")",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(gh api *)"
     ]
   },
   "hooks": {
