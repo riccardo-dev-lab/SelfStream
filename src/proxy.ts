@@ -5,6 +5,7 @@
  * Without this, every segment URL embeds the full CDN URL + all headers (~1500 chars)
  * which exceeds URL length limits in many HLS players.
  */
+import { request } from 'undici';
 
 export const VIXSRC_HEADERS: Record<string, string> = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -102,6 +103,54 @@ export function resolveUrl(base: string, relative: string): string {
         }
         const basePath = baseUrl.pathname.substring(0, baseUrl.pathname.lastIndexOf('/') + 1);
         return `${baseUrl.origin}${basePath}${relative}`;
+    }
+}
+
+export interface HLSVariant {
+    url: string;
+    height: number;
+    bandwidth: number;
+    quality: string; // '4K' | '1080p'
+}
+
+export async function fetchHLSVariants(
+    masterUrl: string,
+    headers: Record<string, string>,
+    minHeight = 1080
+): Promise<HLSVariant[]> {
+    try {
+        const { body, statusCode } = await request(masterUrl, { headers });
+        if (statusCode !== 200) { await body.text(); return []; }
+        const text = await body.text();
+        if (!text.includes('#EXT-X-STREAM-INF:')) return [];
+
+        const lines = text.split(/\r?\n/);
+        const variants: HLSVariant[] = [];
+
+        for (let i = 0; i < lines.length; i++) {
+            if (!lines[i].startsWith('#EXT-X-STREAM-INF:')) continue;
+            const info = lines[i];
+            const urlLine = lines[i + 1]?.trim();
+            i++;
+            if (!urlLine || urlLine.startsWith('#')) continue;
+
+            let height = 0, bandwidth = 0;
+            const hMatch = info.match(/RESOLUTION=\d+x(\d+)/i);
+            if (hMatch) height = parseInt(hMatch[1], 10);
+            const bMatch = info.match(/BANDWIDTH=(\d+)/i);
+            if (bMatch) bandwidth = parseInt(bMatch[1], 10);
+
+            if (height < minHeight) continue;
+
+            const url = urlLine.startsWith('http') ? urlLine : new URL(urlLine, masterUrl).href;
+            const quality = height >= 2160 ? '4K' : '1080p';
+            variants.push({ url, height, bandwidth, quality });
+        }
+
+        variants.sort((a, b) => (b.height - a.height) || (b.bandwidth - a.bandwidth));
+        return variants;
+    } catch {
+        return [];
     }
 }
 

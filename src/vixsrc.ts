@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio';
 import { request } from 'undici';
 import { config } from './config';
-import { makeProxyToken, VIXSRC_HEADERS } from './proxy';
+import { makeProxyToken, VIXSRC_HEADERS, fetchHLSVariants } from './proxy';
 
 /**
  * Resolve the current embed URL through VixSrc JSON API.
@@ -133,19 +133,29 @@ export async function getVixSrcStreams(tmdbId: string, season?: string, episode?
 
         console.log(`[VixSrc] Final stream URL: ${finalStreamUrl}`);
 
-        if (!canPlayFHD) {
-            console.log('[VixSrc] Stream is not FHD — skipped (quality filter)');
-            return [];
+        // 5. Fetch master manifest and extract 4K/1080p variants
+        const variants = await fetchHLSVariants(finalStreamUrl, VIXSRC_HEADERS);
+        console.log(`[VixSrc] Found ${variants.length} variant(s) ≥1080p`);
+
+        if (variants.length > 0) {
+            return variants.map(v => ({
+                name: 'VixSrc 🤌',
+                title: 'Stream',
+                url: `/proxy/hls/manifest.m3u8?token=${makeProxyToken(v.url, VIXSRC_HEADERS)}`,
+                quality: v.quality,
+            }));
         }
 
-        // 5. Wrap through local HLS proxy
-        const proxyToken = makeProxyToken(finalStreamUrl, VIXSRC_HEADERS);
-
+        // Fallback: single stream with master manifest (let proxy pick best)
+        if (!canPlayFHD) {
+            console.log('[VixSrc] Stream is not FHD — skipped');
+            return [];
+        }
         return [{
             name: 'VixSrc 🤌',
             title: 'Stream',
-            url: `/proxy/hls/manifest.m3u8?token=${proxyToken}`,
-            quality: '1080p'
+            url: `/proxy/hls/manifest.m3u8?token=${makeProxyToken(finalStreamUrl, VIXSRC_HEADERS)}`,
+            quality: '1080p',
         }];
 
     } catch(err) {

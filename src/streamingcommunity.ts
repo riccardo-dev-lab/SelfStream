@@ -15,9 +15,42 @@
 import { request } from 'undici';
 import { config } from './config';
 import { extractVixCloudManifest } from './vixcloud';
-import { makeProxyToken, VIXCLOUD_HEADERS } from './proxy';
+import { makeProxyToken, VIXCLOUD_HEADERS, fetchHLSVariants } from './proxy';
 
 const SC_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+const SC_DOMAIN_FALLBACKS = [
+    'streamingcommunity.buzz',
+    'streamingcommunity.properties',
+    'streamingcommunity.computer',
+    'streamingcommunity.website',
+    'streamingcommunity.show',
+    'streamingcommunity.top',
+    'streamingcommunityz.moe',
+];
+
+let cachedSCDomain: string | null = null;
+
+async function findActiveSCDomain(preferred: string): Promise<string> {
+    const candidates = [preferred, ...SC_DOMAIN_FALLBACKS]
+        .filter((d, i, arr) => arr.indexOf(d) === i);
+
+    const found = await Promise.any(
+        candidates.map(async domain => {
+            const { statusCode } = await request(`https://${domain}/en`, {
+                method: 'HEAD',
+                headers: { 'User-Agent': SC_UA },
+                headersTimeout: 5000,
+                bodyTimeout: 500,
+            });
+            if (statusCode < 400) return domain;
+            throw new Error(`dead: ${domain}`);
+        })
+    ).catch(() => preferred);
+
+    if (found !== preferred) console.log(`[SC] Domain discovery: ${preferred} → ${found}`);
+    return found;
+}
 
 const SC_BASE_HEADERS: Record<string, string> = {
     'User-Agent': SC_UA,
@@ -261,12 +294,16 @@ export async function getSCStreams(
     lang: string = 'en'
 ): Promise<any[]> {
     try {
-        const domain = config.scDomain;
+        if (!cachedSCDomain) cachedSCDomain = await findActiveSCDomain(config.scDomain);
+        const domain = cachedSCDomain;
         console.log(`[SC] id=${tmdbId}, type=${type}, S=${season}, E=${episode}, lang=${lang}, domain=${domain}`);
 
         // 1. Sessione
         const session = await getSCSession(domain);
-        if (!session) return [];
+        if (!session) {
+            cachedSCDomain = null; // reset so next request re-discovers
+            return [];
+        }
 
         // 2. Titolo da TMDB (per la ricerca su SC che non ha tmdb_id)
         let titleName = '';
@@ -311,12 +348,24 @@ export async function getSCStreams(
         const hlsUrl = await extractVixCloudManifest(embedUrl);
         if (!hlsUrl) { console.log('[SC] VixCloud manifest extraction failed'); return []; }
 
-        const proxyToken = makeProxyToken(hlsUrl, VIXCLOUD_HEADERS);
+        // 7. Fetch master manifest e restituisci una stream per ogni variante 4K/1080p
+        const variants = await fetchHLSVariants(hlsUrl, VIXCLOUD_HEADERS);
+        console.log(`[SC] Found ${variants.length} variant(s) ≥1080p`);
 
+        if (variants.length > 0) {
+            return variants.map(v => ({
+                name: 'StreamingCommunity 🤌',
+                title: 'Stream',
+                url: `/proxy/hls/manifest.m3u8?token=${makeProxyToken(v.url, VIXCLOUD_HEADERS)}`,
+                quality: v.quality,
+            }));
+        }
+
+        // Fallback: singolo stream con master manifest
         return [{
             name: 'StreamingCommunity 🤌',
             title: 'Stream',
-            url: `/proxy/hls/manifest.m3u8?token=${proxyToken}`,
+            url: `/proxy/hls/manifest.m3u8?token=${makeProxyToken(hlsUrl, VIXCLOUD_HEADERS)}`,
             quality: '1080p',
         }];
 
