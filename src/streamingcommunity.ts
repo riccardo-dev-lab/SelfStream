@@ -68,7 +68,10 @@ async function getSCSession(domain: string): Promise<SCSession | null> {
         // Estrai Inertia version dal data-page attribute nell'HTML
         // Formato: data-page="{...&quot;version&quot;:&quot;abc123&quot;...}"
         let inertiaVersion = '';
-        const versionMatch = html.match(/"version"\s*:\s*"([a-f0-9]+)"/);
+        // data-page è HTML-encoded: &quot; invece di "
+        const versionMatch =
+            html.match(/&quot;version&quot;\s*:\s*&quot;([^&]+)&quot;/) ||
+            html.match(/"version"\s*:\s*"([^"]+)"/);
         if (versionMatch) inertiaVersion = versionMatch[1];
 
         console.log(`[SC] Session ok, inertia version: ${inertiaVersion}`);
