@@ -9,7 +9,11 @@
       "Bash(curl *)",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(gh run *)",
+      "Bash(npx vercel *)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d['packages'].get\\('node_modules/typescript', {}\\).get\\('version', 'NOT FOUND'\\)\\)\")",
+      "Bash(node *)"
     ]
   },
   "hooks": {
