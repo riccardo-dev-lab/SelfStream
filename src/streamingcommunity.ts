@@ -236,7 +236,7 @@ async function getEmbedUrl(
         // L'HTML contiene <iframe src="https://vixcloud.co/embed/<id>?token=...">
         const iframeMatch = html.match(/src=["'](https?:\/\/vixcloud\.co\/embed\/[^"']+)["']/);
         if (iframeMatch) {
-            let embedUrl = iframeMatch[1];
+            let embedUrl = iframeMatch[1].replace(/&amp;/g, '&');
             if (!embedUrl.includes('scz=')) embedUrl += '&scz=1';
             if (!embedUrl.includes('lang=')) embedUrl += `&lang=${lang}`;
             console.log(`[SC] Embed URL: ${embedUrl.substring(0, 80)}...`);
