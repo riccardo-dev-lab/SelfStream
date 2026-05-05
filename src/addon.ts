@@ -248,8 +248,6 @@ builder.defineStreamHandler(async (args: any) => {
     return { streams };
 });
 
-const addonInterface = builder.getInterface();
-
 const app = express();
 app.set('trust proxy', true);
 app.use((req: any, res: any, next: any) => {
