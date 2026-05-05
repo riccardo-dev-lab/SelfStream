@@ -105,6 +105,13 @@ p.description{font-size:16px;color:var(--text-muted);line-height:1.6;margin-bott
         <label class="toggle"><input type="checkbox" id="animeunityEnabled" onchange="toggleSource('animeunity')"><span class="toggle-slider"></span></label>
     </div>
 </div>
+
+<div class="source-row enabled" id="sports-row">
+    <div class="source-header">
+        <span class="source-label">🏆 Sport Live <span class="source-badge">Live · Tennis · F1 · Calcio · MotoGP</span></span>
+        <label class="toggle"><input type="checkbox" id="sportsEnabled" checked onchange="toggleSource('sports')"><span class="toggle-slider"></span></label>
+    </div>
+</div>
 </div>
 
 <div class="button-group">
@@ -130,7 +137,8 @@ function getConfig(){
         cinemacityLang: document.getElementById('cinemacityLang').value,
         animeunityEnabled: document.getElementById('animeunityEnabled').checked,
         scEnabled: document.getElementById('scEnabled').checked,
-        scLang: document.getElementById('scLang').value
+        scLang: document.getElementById('scLang').value,
+        sportsEnabled: document.getElementById('sportsEnabled').checked
     };
 }
 

@@ -102,7 +102,7 @@ async function handleStream(type: string, id: string, userConfig: UserConfig): P
 
     try {
         // ── Sport Live (DaddyLive) ──
-        if (type === 'tv' && id.startsWith('sport:ev:')) {
+        if (type === 'tv' && id.startsWith('sport:ev:') && userConfig.sportsEnabled) {
             const decoded = decodeSportId(id);
             if (decoded) {
                 const results = await Promise.allSettled(

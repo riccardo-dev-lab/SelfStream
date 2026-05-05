@@ -56,6 +56,7 @@ export interface UserConfig {
   animeunityEnabled: boolean;
   scEnabled: boolean;
   scLang: string;
+  sportsEnabled: boolean;
 }
 
 export const DEFAULT_CONFIG: UserConfig = {
@@ -66,6 +67,7 @@ export const DEFAULT_CONFIG: UserConfig = {
   animeunityEnabled: false,
   scEnabled: true,
   scLang: 'en',
+  sportsEnabled: true,
 };
 
 export function encodeConfig(cfg: UserConfig): string {
@@ -83,6 +85,7 @@ export function decodeConfig(token: string): UserConfig {
       animeunityEnabled: parsed.animeunityEnabled === true,
       scEnabled: parsed.scEnabled === true,
       scLang: parsed.scLang || DEFAULT_CONFIG.scLang,
+      sportsEnabled: parsed.sportsEnabled !== false,
     };
   } catch {
     return { ...DEFAULT_CONFIG };
