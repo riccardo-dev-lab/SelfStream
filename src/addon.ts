@@ -90,6 +90,18 @@ const manifest = {
             id: 'sports_live',
             type: 'tv',
             name: 'Sport Live 🏆',
+            extra: [
+                {
+                    name: 'genre',
+                    isRequired: false,
+                    options: [
+                        'Fútbol', 'Tennis', 'Basketball', 'Formula 1', 'MotoGP',
+                        'Boxing', 'Cricket', 'Golf', 'Ice Hockey', 'Rugby',
+                        'Cycling', 'Athletics', 'Volleyball', 'Darts', 'Snooker',
+                        'MMA', 'Baseball', 'American Football', 'Other',
+                    ],
+                },
+            ],
         }
     ]
 };
@@ -325,14 +337,29 @@ app.get('/debug/sports', async (_req: any, res: any) => {
 });
 
 // ── Sports: Catalog ──
-app.get(['/catalog/tv/sports_live.json', '/:config/catalog/tv/sports_live.json'], async (req: any, res: any) => {
+app.get([
+    '/catalog/tv/sports_live.json',
+    '/catalog/tv/sports_live/:extra.json',
+    '/:config/catalog/tv/sports_live.json',
+    '/:config/catalog/tv/sports_live/:extra.json',
+], async (req: any, res: any) => {
     try {
-        const events = await getSportEvents();
+        const extra: string = req.params.extra || '';
+        const genreMatch = extra.match(/genre=([^&]+)/);
+        const genre = genreMatch ? decodeURIComponent(genreMatch[1]) : null;
+
+        let events = await getSportEvents();
+        if (genre) {
+            events = events.filter(ev => ev.sport === genre ||
+                ev.sport.toLowerCase() === genre.toLowerCase());
+        }
+
         const metas = events.map(ev => ({
             id: ev.id,
             type: 'tv',
             name: ev.name,
             description: ev.description,
+            genres: [ev.sport],
         }));
         res.setHeader('Cache-Control', 'no-store');
         res.json({ metas });
