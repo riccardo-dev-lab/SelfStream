@@ -3,6 +3,7 @@ import { getVixSrcStreams } from './vixsrc';
 import { getVixCloudStreams } from './vixcloud';
 import { getCinemaCityStreams, extractFreshStreamUrl, FreshStream, SubtitleTrack } from './cinemacity';
 import { getSCStreams } from './streamingcommunity';
+import { getSportEvents, decodeSportId, getChannelStream, SPORT_EMOJI } from './sports';
 import { decodeProxyToken, resolveUrl, makeProxyToken, getAddonBase } from './proxy';
 import { decodeConfig, UserConfig, DEFAULT_CONFIG, config, AVAILABLE_LANGUAGES } from './config';
 import { request } from 'undici';
@@ -76,15 +77,21 @@ function guessLangCode(label: string): string {
 
 const manifest = {
     id: 'org.selfstream.addon',
-    version: '1.1.0',
+    version: '1.2.0',
     name: 'SelfStream🤌',
     description: 'SelfStream - Multi-source streaming addon',
     logo: 'https://icv.stremio.dpdns.org/prisonmike.png',
     background: 'https://blog.stremio.com/wp-content/uploads/2022/08/shino-1024x632.png',
-    resources: ['stream'],
-    types: ['movie', 'series', 'anime'],
-    idPrefixes: ['tmdb:', 'tt', 'kitsu:'],
-    catalogs: []
+    resources: ['stream', 'catalog', 'meta'],
+    types: ['movie', 'series', 'anime', 'tv'],
+    idPrefixes: ['tmdb:', 'tt', 'kitsu:', 'sport:'],
+    catalogs: [
+        {
+            id: 'sports_live',
+            type: 'tv',
+            name: 'Sport Live 🏆',
+        }
+    ]
 };
 
 const builder = new addonBuilder(manifest as any);
@@ -94,6 +101,27 @@ async function handleStream(type: string, id: string, userConfig: UserConfig): P
     const allStreams: any[] = [];
 
     try {
+        // ── Sport Live (DaddyLive) ──
+        if (type === 'tv' && id.startsWith('sport:ev:')) {
+            const decoded = decodeSportId(id);
+            if (decoded) {
+                const results = await Promise.allSettled(
+                    decoded.c.map(ch => getChannelStream(ch))
+                );
+                const emoji = SPORT_EMOJI[decoded.s] || '🏆';
+                for (const r of results) {
+                    if (r.status === 'fulfilled' && r.value) {
+                        allStreams.push({
+                            name: 'Sport Live 🤌',
+                            title: `${emoji} ${decoded.n}\n📡 ${r.value.name}`,
+                            url: r.value.url,
+                        });
+                    }
+                }
+            }
+            return allStreams;
+        }
+
         // ── Kitsu (AnimeUnity/VixCloud) ──
         if (id && id.startsWith('kitsu:')) {
             if (userConfig.animeunityEnabled) {
@@ -286,6 +314,41 @@ app.get('/stream/:type/:id.json', async (req: any, res: any) => {
     } catch (err: any) {
         res.status(500).json({ error: err?.message || 'Internal Error' });
     }
+});
+
+// ── Sports: Catalog ──
+app.get(['/catalog/tv/sports_live.json', '/:config/catalog/tv/sports_live.json'], async (req: any, res: any) => {
+    try {
+        const events = await getSportEvents();
+        const metas = events.map(ev => ({
+            id: ev.id,
+            type: 'tv',
+            name: ev.name,
+            description: ev.description,
+        }));
+        res.setHeader('Cache-Control', 'no-store');
+        res.json({ metas });
+    } catch (e: any) {
+        console.error('[Sports Catalog] error:', e?.message);
+        res.json({ metas: [] });
+    }
+});
+
+// ── Sports: Meta ──
+app.get(['/meta/tv/:id.json', '/:config/meta/tv/:id.json'], async (req: any, res: any) => {
+    const { id } = req.params;
+    if (!id.startsWith('sport:ev:')) return res.json({ meta: null });
+    const decoded = decodeSportId(id);
+    if (!decoded) return res.json({ meta: null });
+    const emoji = SPORT_EMOJI[decoded.s] || '🏆';
+    res.json({
+        meta: {
+            id,
+            type: 'tv',
+            name: `${emoji} ${decoded.n}`,
+            description: `${decoded.s}${decoded.t ? ' · ' + decoded.t + ' GMT' : ''} · ${decoded.c.length} canale/i`,
+        }
+    });
 });
 
 // ── CinemaCity Lazy Proxy: resolves fresh CDN URL at playback time ──

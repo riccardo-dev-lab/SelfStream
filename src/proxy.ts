@@ -15,6 +15,12 @@ export const VIXSRC_HEADERS: Record<string, string> = {
     'Referer': 'https://vixsrc.to/'
 };
 
+export const SPORT_HEADERS: Record<string, string> = {
+    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
+    'Referer': 'https://allupplay.xyz/',
+    'Origin': 'https://allupplay.xyz',
+};
+
 export const VIXCLOUD_HEADERS: Record<string, string> = {
     'Accept': '*/*',
     'Connection': 'keep-alive',
@@ -71,6 +77,8 @@ export function decodeProxyToken(token: string): { u: string; h: Record<string, 
                     headers = { ...VIXSRC_HEADERS };
                 } else if (url.includes('vixcloud') || url.includes('animeunity')) {
                     headers = { ...VIXCLOUD_HEADERS };
+                } else if (url.includes('newkso.ru')) {
+                    headers = { ...SPORT_HEADERS };
                 } else {
                     // Generic headers for CinemaCity CDN etc
                     headers = {
