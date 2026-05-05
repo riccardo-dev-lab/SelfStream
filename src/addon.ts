@@ -310,6 +310,20 @@ app.get('/stream/:type/:id.json', async (req: any, res: any) => {
     }
 });
 
+// ── Sports: Debug ──
+app.get('/debug/sports', async (_req: any, res: any) => {
+    try {
+        const { body, statusCode } = await request('https://streamtpcloud.com/eventos.json', {
+            headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://streamtpcloud.com/' },
+            headersTimeout: 8000, bodyTimeout: 8000, maxRedirections: 3,
+        });
+        const text = await body.text();
+        res.json({ statusCode, length: text.length, preview: text.slice(0, 200) });
+    } catch (e: any) {
+        res.json({ error: e?.message });
+    }
+});
+
 // ── Sports: Catalog ──
 app.get(['/catalog/tv/sports_live.json', '/:config/catalog/tv/sports_live.json'], async (req: any, res: any) => {
     try {
