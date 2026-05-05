@@ -61,11 +61,6 @@ const LABEL_TO_LANG: Record<string, string> = {
     'vietnamese': 'vi', 'tiếng việt': 'vi',
 };
 
-function getLangInfo(langCode: string): { flag: string; label: string } {
-    const found = AVAILABLE_LANGUAGES.find(l => l.code === langCode);
-    return found ? { flag: found.flag, label: found.label } : { flag: '🌐', label: langCode.toUpperCase() };
-}
-
 function guessLangCode(label: string): string {
     const lower = label.toLowerCase().replace(/\s*\(.*$/, '').trim();
     if (LABEL_TO_LANG[lower]) return LABEL_TO_LANG[lower];
@@ -158,10 +153,8 @@ async function handleStream(type: string, id: string, userConfig: UserConfig): P
                 try {
                     const vixStreams = await getVixSrcStreams(tmdbId, season, episode, userConfig.vixLang);
                     for (const s of vixStreams) {
-                        const { flag, label } = getLangInfo(userConfig.vixLang);
-                        const quality = s.quality || '1080p';
                         s.name = 'VixSrc 🤌';
-                        s.title = `🎬 ${mediaTitle || 'Stream'}\n${flag} ${label} · ${quality}`;
+                        s.title = `🎬 ${mediaTitle || 'Stream'}`;
                         if (type === 'series' && season) {
                             s.behaviorHints = { bingeGroup: `ss-vix-${tmdbId}-s${season}` };
                         }
@@ -177,9 +170,8 @@ async function handleStream(type: string, id: string, userConfig: UserConfig): P
                 try {
                     const ccStreams = await getCinemaCityStreams(tmdbId, type, season, episode, userConfig.cinemacityLang);
                     for (const s of ccStreams) {
-                        const { flag, label } = getLangInfo(userConfig.cinemacityLang);
                         s.name = 'CinemaCity 🤌';
-                        s.title = `🎬 ${mediaTitle || 'Stream'}\n${flag} ${label} · HD`;
+                        s.title = `🎬 ${mediaTitle || 'Stream'}`;
                         if (type === 'series' && season) {
                             s.behaviorHints = { bingeGroup: `ss-cc-${tmdbId}-s${season}` };
                         }
@@ -195,10 +187,8 @@ async function handleStream(type: string, id: string, userConfig: UserConfig): P
                 try {
                     const scStreams = await getSCStreams(tmdbId, type, season, episode, userConfig.scLang);
                     for (const s of scStreams) {
-                        const { flag, label } = getLangInfo(userConfig.scLang);
-                        const quality = s.quality || '1080p';
                         s.name = 'StreamingCommunity 🤌';
-                        s.title = `🎬 ${mediaTitle || 'Stream'}\n${flag} ${label} · ${quality}`;
+                        s.title = `🎬 ${mediaTitle || 'Stream'}`;
                         if (type === 'series' && season) {
                             s.behaviorHints = { bingeGroup: `ss-sc-${tmdbId}-s${season}` };
                         }
