@@ -353,12 +353,12 @@ export async function getSCStreams(
         console.log(`[SC] Found ${variants.length} variant(s) ≥1080p`);
 
         if (variants.length > 0) {
-            return variants.map(v => ({
+            return [{
                 name: 'StreamingCommunity 🤌',
                 title: 'Stream',
-                url: `/proxy/hls/manifest.m3u8?token=${makeProxyToken(v.url, VIXCLOUD_HEADERS)}`,
-                quality: v.quality,
-            }));
+                url: `/proxy/hls/manifest.m3u8?token=${makeProxyToken(hlsUrl, VIXCLOUD_HEADERS)}`,
+                quality: variants[0].quality,
+            }];
         }
 
         // Fallback: singolo stream con master manifest

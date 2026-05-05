@@ -138,12 +138,12 @@ export async function getVixSrcStreams(tmdbId: string, season?: string, episode?
         console.log(`[VixSrc] Found ${variants.length} variant(s) ≥1080p`);
 
         if (variants.length > 0) {
-            return variants.map(v => ({
+            return [{
                 name: 'VixSrc 🤌',
                 title: 'Stream',
-                url: `/proxy/hls/manifest.m3u8?token=${makeProxyToken(v.url, VIXSRC_HEADERS)}`,
-                quality: v.quality,
-            }));
+                url: `/proxy/hls/manifest.m3u8?token=${makeProxyToken(finalStreamUrl, VIXSRC_HEADERS)}`,
+                quality: variants[0].quality,
+            }];
         }
 
         // Fallback: single stream with master manifest (let proxy pick best)
