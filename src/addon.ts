@@ -315,7 +315,7 @@ app.get('/debug/sports', async (_req: any, res: any) => {
     try {
         const { body, statusCode } = await request('https://streamtpcloud.com/eventos.json', {
             headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://streamtpcloud.com/' },
-            headersTimeout: 8000, bodyTimeout: 8000, maxRedirections: 3,
+            headersTimeout: 8000, bodyTimeout: 8000,
         });
         const text = await body.text();
         res.json({ statusCode, length: text.length, preview: text.slice(0, 200) });

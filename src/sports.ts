@@ -64,7 +64,6 @@ async function fetchSchedule(): Promise<any[]> {
             },
             headersTimeout: 8000,
             bodyTimeout: 8000,
-            maxRedirections: 3,
         });
         if (statusCode !== 200) { await body.text(); return scheduleCache?.data || []; }
         const data = await body.json() as any[];
@@ -143,9 +142,20 @@ export async function getSportEvents(): Promise<SportEventMeta[]> {
     return events;
 }
 
+function toPremierUrl(link: string): string {
+    try {
+        const u = new URL(link);
+        const stream = u.searchParams.get('stream') || '';
+        return `https://streamtpnew.com/premier.php?stream=${encodeURIComponent(stream)}`;
+    } catch {
+        return link;
+    }
+}
+
 async function decryptStreamTP(pageUrl: string): Promise<string | null> {
     try {
-        const { body, statusCode } = await request(pageUrl, {
+        const premierUrl = toPremierUrl(pageUrl);
+        const { body, statusCode } = await request(premierUrl, {
             headers: {
                 'User-Agent': SPORT_HEADERS['User-Agent'],
                 'Referer': 'https://streamtpcloud.com/',
@@ -153,7 +163,6 @@ async function decryptStreamTP(pageUrl: string): Promise<string | null> {
             },
             headersTimeout: 8000,
             bodyTimeout: 10000,
-            maxRedirections: 3,
         });
         if (statusCode !== 200) { await body.text(); return null; }
         const html = await body.text();
