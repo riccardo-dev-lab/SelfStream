@@ -3,7 +3,7 @@ import { getVixSrcStreams } from './vixsrc';
 import { getVixCloudStreams } from './vixcloud';
 import { getCinemaCityStreams, extractFreshStreamUrl, FreshStream, SubtitleTrack } from './cinemacity';
 import { getSCStreams } from './streamingcommunity';
-import { getSportEvents, decodeSportId, getChannelStream, SPORT_EMOJI } from './sports';
+import { getSportEvents, decodeSportId, getEventStreams, SPORT_EMOJI } from './sports';
 import { decodeProxyToken, resolveUrl, makeProxyToken, getAddonBase } from './proxy';
 import { decodeConfig, UserConfig, DEFAULT_CONFIG, config, AVAILABLE_LANGUAGES } from './config';
 import { request } from 'undici';
@@ -101,22 +101,18 @@ async function handleStream(type: string, id: string, userConfig: UserConfig): P
     const allStreams: any[] = [];
 
     try {
-        // ── Sport Live (DaddyLive) ──
+        // ── Sport Live (StreamTP) ──
         if (type === 'tv' && id.startsWith('sport:ev:') && userConfig.sportsEnabled) {
             const decoded = decodeSportId(id);
             if (decoded) {
-                const results = await Promise.allSettled(
-                    decoded.c.map(ch => getChannelStream(ch))
-                );
+                const streams = await getEventStreams(decoded.l || []);
                 const emoji = SPORT_EMOJI[decoded.s] || '🏆';
-                for (const r of results) {
-                    if (r.status === 'fulfilled' && r.value) {
-                        allStreams.push({
-                            name: 'Sport Live 🤌',
-                            title: `${emoji} ${decoded.n}\n📡 ${r.value.name}`,
-                            url: r.value.url,
-                        });
-                    }
+                for (const s of streams) {
+                    allStreams.push({
+                        name: 'Sport Live 🤌',
+                        title: `${emoji} ${decoded.t}\n📡 ${s.name}`,
+                        url: s.url,
+                    });
                 }
             }
             return allStreams;
@@ -343,8 +339,8 @@ app.get(['/meta/tv/:id.json', '/:config/meta/tv/:id.json'], async (req: any, res
         meta: {
             id,
             type: 'tv',
-            name: `${emoji} ${decoded.n}`,
-            description: `${decoded.s}${decoded.t ? ' · ' + decoded.t + ' GMT' : ''} · ${decoded.c.length} canale/i`,
+            name: `${emoji} ${decoded.t}`,
+            description: `${decoded.s}${decoded.tm ? ' · ' + decoded.tm : ''} · ${decoded.l?.length || 0} link`,
         }
     });
 });
