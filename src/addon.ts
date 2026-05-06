@@ -376,12 +376,18 @@ app.get(['/meta/tv/:id.json', '/:config/meta/tv/:id.json'], async (req: any, res
     const decoded = decodeSportId(id);
     if (!decoded) return res.json({ meta: null });
     const emoji = SPORT_EMOJI[decoded.s] || '🏆';
+    const today = new Date();
+    const dateStr = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}`;
+    const timeDisplay = decoded.tm ? `${dateStr} ${decoded.tm}` : '';
+    const descParts = [decoded.s];
+    if (timeDisplay) descParts.push(timeDisplay);
+    descParts.push(`${decoded.l?.length || 0} canali`);
     res.json({
         meta: {
             id,
             type: 'tv',
             name: `${emoji} ${decoded.t}`,
-            description: `${decoded.s}${decoded.tm ? ' · ' + decoded.tm : ''} · ${decoded.l?.length || 0} link`,
+            description: descParts.join(' · '),
         }
     });
 });

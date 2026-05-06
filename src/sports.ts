@@ -49,7 +49,35 @@ export interface EncodedEvent {
 }
 
 let scheduleCache: { data: any[]; fetchedAt: number } | null = null;
-const CACHE_TTL = 5 * 60 * 1000;
+const CACHE_TTL = 60 * 1000; // 1 minute
+
+function channelFromLink(link: string): string {
+    try {
+        const stream = new URL(link).searchParams.get('stream') || '';
+        if (!stream) return '';
+        if (stream.startsWith('disney')) {
+            const n = stream.replace('disney', '');
+            return n ? `Disney+ ${n}` : 'Disney+';
+        }
+        if (stream.startsWith('espn')) {
+            const n = stream.replace('espn', '');
+            return n ? `ESPN ${n}` : 'ESPN';
+        }
+        if (stream.startsWith('fanatiz')) {
+            const n = stream.replace('fanatiz', '');
+            return n ? `Fanatiz ${n}` : 'Fanatiz';
+        }
+        if (stream.startsWith('fox')) {
+            const n = stream.replace('fox', '');
+            return n ? `Fox Sports ${n}` : 'Fox Sports';
+        }
+        if (stream.startsWith('tnt')) {
+            const n = stream.replace('tnt', '');
+            return n ? `TNT ${n}` : 'TNT';
+        }
+        return stream.toUpperCase();
+    } catch { return ''; }
+}
 
 async function fetchSchedule(): Promise<any[]> {
     const now = Date.now();
@@ -88,26 +116,47 @@ export function decodeSportId(id: string): EncodedEvent | null {
     }
 }
 
+function isPastEvent(time: string, live: boolean): boolean {
+    if (live) return false;
+    if (!time) return false;
+    const m = time.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return false;
+    const now = new Date();
+    const evH = parseInt(m[1]), evM = parseInt(m[2]);
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const evMinutes = evH * 60 + evM;
+    // Skip if event ended more than 3 hours ago
+    return nowMinutes - evMinutes > 180;
+}
+
 export async function getSportEvents(): Promise<SportEventMeta[]> {
     const schedule = await fetchSchedule();
     if (!schedule.length) return [];
 
-    // Group events by title, collecting all unique stream links
-    const eventMap = new Map<string, { links: string[]; sport: string; time: string; live: boolean }>();
+    const today = new Date();
+    const dateStr = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}`;
+
+    // Group events by title, collecting all unique stream links and channels
+    const eventMap = new Map<string, { links: string[]; channels: string[]; sport: string; time: string; live: boolean }>();
 
     for (const ev of schedule) {
         const title: string = ev?.title || '';
         const link: string = ev?.link || '';
         if (!title || !link) continue;
 
+        const channel = channelFromLink(link);
         const existing = eventMap.get(title);
         if (existing) {
             if (!existing.links.includes(link) && existing.links.length < 5) {
                 existing.links.push(link);
+                if (channel && !existing.channels.includes(channel)) {
+                    existing.channels.push(channel);
+                }
             }
         } else {
             eventMap.set(title, {
                 links: [link],
+                channels: channel ? [channel] : [],
                 sport: ev?.category || 'Sport',
                 time: ev?.time || '',
                 live: ev?.status === 'en vivo',
@@ -117,17 +166,27 @@ export async function getSportEvents(): Promise<SportEventMeta[]> {
 
     const events: SportEventMeta[] = [];
 
-    for (const [title, { links, sport, time, live }] of eventMap) {
+    for (const [title, { links, channels, sport, time, live }] of eventMap) {
+        if (isPastEvent(time, live)) continue;
+
         const encoded: EncodedEvent = { t: title, s: sport, tm: time, l: links };
         const id = makeSportId(encoded);
         const emoji = SPORT_EMOJI[sport] || '🏆';
+
+        const timeDisplay = time ? `${dateStr} ${time}` : '';
+        const channelsStr = channels.length ? channels.slice(0, 3).join(', ') : '';
+
+        const descParts = [sport];
+        if (timeDisplay) descParts.push(timeDisplay);
+        if (channelsStr) descParts.push(`📡 ${channelsStr}`);
+        if (live) descParts.push('🔴 Live');
 
         events.push({
             id,
             name: `${emoji} ${title}`,
             sport,
             time,
-            description: `${sport}${time ? ' · ' + time : ''}${live ? ' · 🔴 Live' : ''}`,
+            description: descParts.join(' · '),
             live,
         });
     }
@@ -208,7 +267,9 @@ export async function getEventStreams(links: string[]): Promise<{ url: string; n
                 'User-Agent': SPORT_HEADERS['User-Agent'],
                 'Referer': new URL(m3u8Url).origin + '/',
             });
-            return { url: `/proxy/hls/manifest.m3u8?token=${token}`, name: `Link ${i + 1}` };
+            const channel = channelFromLink(link);
+            const name = channel ? `📡 ${channel}` : `Link ${i + 1}`;
+            return { url: `/proxy/hls/manifest.m3u8?token=${token}`, name };
         })
     );
 
