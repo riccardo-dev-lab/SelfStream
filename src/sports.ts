@@ -125,8 +125,8 @@ function isPastEvent(time: string, live: boolean): boolean {
     const evH = parseInt(m[1]), evM = parseInt(m[2]);
     const nowMinutes = now.getHours() * 60 + now.getMinutes();
     const evMinutes = evH * 60 + evM;
-    // Skip if event ended more than 3 hours ago
-    return nowMinutes - evMinutes > 180;
+    // Source times appear to be in UTC; filter if time has passed
+    return nowMinutes > evMinutes;
 }
 
 export async function getSportEvents(): Promise<SportEventMeta[]> {
