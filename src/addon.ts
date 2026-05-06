@@ -95,10 +95,9 @@ const manifest = {
                     name: 'genre',
                     isRequired: false,
                     options: [
-                        'Fútbol', 'Tennis', 'Basketball', 'Formula 1', 'MotoGP',
-                        'Boxing', 'Cricket', 'Golf', 'Ice Hockey', 'Rugby',
-                        'Cycling', 'Athletics', 'Volleyball', 'Darts', 'Snooker',
-                        'MMA', 'Baseball', 'American Football', 'Other',
+                        'Tennis', 'Formula 1', 'MotoGP',
+                        'Boxing', 'Rugby', 'Cycling', 'Athletics',
+                        'Volleyball', 'MMA', 'Other',
                     ],
                 },
             ],

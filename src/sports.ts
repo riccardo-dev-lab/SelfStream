@@ -51,6 +51,18 @@ export interface EncodedEvent {
 let scheduleCache: { data: any[]; fetchedAt: number } | null = null;
 const CACHE_TTL = 60 * 1000; // 1 minute
 
+const BLOCKED_SPORTS = new Set([
+    'Fútbol', 'Futbol', 'Soccer', 'Football', 'Calcio',
+    'American Football',
+    'Baseball', 'Béisbol',
+    'Snooker',
+    'Darts',
+    'Golf',
+    'Ice Hockey', 'Hockey',
+    'Cricket',
+    'Basketball', 'Baloncesto', 'NBA',
+]);
+
 function channelFromLink(link: string): string {
     try {
         const stream = new URL(link).searchParams.get('stream') || '';
@@ -168,6 +180,7 @@ export async function getSportEvents(): Promise<SportEventMeta[]> {
 
     for (const [title, { links, channels, sport, time, live }] of eventMap) {
         if (isPastEvent(time, live)) continue;
+        if (BLOCKED_SPORTS.has(sport)) continue;
 
         const encoded: EncodedEvent = { t: title, s: sport, tm: time, l: links };
         const id = makeSportId(encoded);
