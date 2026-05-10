@@ -4,6 +4,7 @@ import { getVixCloudStreams } from './vixcloud';
 import { getCinemaCityStreams, extractFreshStreamUrl, FreshStream, SubtitleTrack } from './cinemacity';
 import { getSCStreams } from './streamingcommunity';
 import { getSportEvents, decodeSportId, getEventStreams, SPORT_EMOJI } from './sports';
+import { getTennisStreams, fetchTennisSchedule } from './tennis';
 import { decodeProxyToken, resolveUrl, makeProxyToken, getAddonBase } from './proxy';
 import { decodeConfig, UserConfig, DEFAULT_CONFIG, config, AVAILABLE_LANGUAGES } from './config';
 import { request } from 'undici';
@@ -101,6 +102,12 @@ const manifest = {
                     ],
                 },
             ],
+        },
+        {
+            id: 'tennis_live',
+            type: 'tv',
+            name: 'Tennis Live 🎾',
+            extra: [],
         }
     ]
 };
@@ -125,6 +132,19 @@ async function handleStream(type: string, id: string, userConfig: UserConfig): P
                         url: s.url,
                     });
                 }
+            }
+            return allStreams;
+        }
+
+        // ── Tennis Live (tennistream.com) ──
+        if (type === 'tv' && id.startsWith('tennis:')) {
+            const streams = await getTennisStreams();
+            for (const s of streams) {
+                allStreams.push({
+                    name: 'Tennis Live 🤌',
+                    title: s.title || '',
+                    url: s.url,
+                });
             }
             return allStreams;
         }
@@ -324,8 +344,8 @@ app.get('/stream/:type/:id.json', async (req: any, res: any) => {
 // ── Sports: Debug ──
 app.get('/debug/sports', async (_req: any, res: any) => {
     try {
-        const { body, statusCode } = await request('https://streamtpcloud.com/eventos.json', {
-            headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://streamtpcloud.com/' },
+        const { body, statusCode } = await request('https://streamtpnew.com/eventos.json', {
+            headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://streamtpnew.com/' },
             headersTimeout: 8000, bodyTimeout: 8000,
         });
         const text = await body.text();
@@ -389,6 +409,51 @@ app.get(['/meta/tv/:id.json', '/:config/meta/tv/:id.json'], async (req: any, res
             description: descParts.join(' · '),
         }
     });
+});
+
+// ── Tennis: Catalog ──
+app.get([
+    '/catalog/tv/tennis_live.json',
+    '/:config/catalog/tv/tennis_live.json',
+], async (req: any, res: any) => {
+    try {
+        console.log('[Tennis Catalog] Fetching schedule...');
+        const matches = await fetchTennisSchedule();
+        console.log(`[Tennis Catalog] Found ${matches.length} matches`);
+        const metas = matches.map((ev: any) => ({
+            id: `tennis:${Buffer.from(JSON.stringify({ match: ev.match, time: ev.time, channels: ev.channels })).toString('base64url')}`,
+            type: 'tv',
+            name: `🎾 ${ev.match}`,
+            description: `${ev.time} · ${ev.section}`,
+            genres: ['Tennis'],
+        }));
+        console.log(`[Tennis Catalog] Generated ${metas.length} metas`);
+        res.setHeader('Cache-Control', 'no-store');
+        res.json({ metas });
+    } catch (e: any) {
+        console.error('[Tennis Catalog] error:', e?.message);
+        res.json({ metas: [] });
+    }
+});
+
+// ── Tennis: Meta ──
+app.get(['/meta/tv/tennis-*.json', '/:config/meta/tv/tennis-*.json'], async (req: any, res: any) => {
+    const { id } = req.params;
+    if (!id.startsWith('tennis:')) return res.json({ meta: null });
+    try {
+        const data = JSON.parse(Buffer.from(id.slice('tennis:'.length), 'base64url').toString('utf8'));
+        res.json({
+            meta: {
+                id,
+                type: 'tv',
+                name: `🎾 ${data.match}`,
+                description: `${data.time} · ${data.channels.length} canali`,
+                genres: ['Tennis'],
+            }
+        });
+    } catch {
+        res.json({ meta: null });
+    }
 });
 
 // ── CinemaCity Lazy Proxy: resolves fresh CDN URL at playback time ──

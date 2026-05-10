@@ -1,7 +1,7 @@
 import { request } from 'undici';
 import { makeProxyToken, SPORT_HEADERS } from './proxy';
 
-const SCHEDULE_URL = 'https://streamtpcloud.com/eventos.json';
+const SCHEDULE_URL = 'https://streamtpnew.com/eventos.json';
 
 export const SPORT_EMOJI: Record<string, string> = {
     'Fútbol': '⚽', 'Futbol': '⚽', 'Soccer': '⚽', 'Football': '⚽',
@@ -100,7 +100,7 @@ async function fetchSchedule(): Promise<any[]> {
         const { body, statusCode } = await request(SCHEDULE_URL, {
             headers: {
                 'User-Agent': SPORT_HEADERS['User-Agent'],
-                'Referer': 'https://streamtpcloud.com/',
+                'Referer': 'https://streamtpnew.com/',
             },
             headersTimeout: 8000,
             bodyTimeout: 8000,
@@ -214,11 +214,11 @@ export async function getSportEvents(): Promise<SportEventMeta[]> {
     return events;
 }
 
-function toPremierUrl(link: string): string {
+function toGlobalUrl(link: string): string {
     try {
         const u = new URL(link);
         const stream = u.searchParams.get('stream') || '';
-        return `https://streamtpnew.com/premier.php?stream=${encodeURIComponent(stream)}`;
+        return `https://streamtp-abc.net/global1.php?stream=${encodeURIComponent(stream)}`;
     } catch {
         return link;
     }
@@ -226,12 +226,12 @@ function toPremierUrl(link: string): string {
 
 async function decryptStreamTP(pageUrl: string): Promise<string | null> {
     try {
-        const premierUrl = toPremierUrl(pageUrl);
-        const { body, statusCode } = await request(premierUrl, {
+        const globalUrl = toGlobalUrl(pageUrl);
+        const { body, statusCode } = await request(globalUrl, {
             headers: {
                 'User-Agent': SPORT_HEADERS['User-Agent'],
-                'Referer': 'https://streamtpcloud.com/',
-                'Origin': 'https://streamtpcloud.com',
+                'Referer': 'https://streamtpnew.com/',
+                'Origin': 'https://streamtpnew.com',
             },
             headersTimeout: 8000,
             bodyTimeout: 10000,
@@ -239,26 +239,67 @@ async function decryptStreamTP(pageUrl: string): Promise<string | null> {
         if (statusCode !== 200) { await body.text(); return null; }
         const html = await body.text();
 
-        // Two functions that return numbers: function NAME(){return NUMBER;}
+        // Extract two functions that return numbers: function NAME(){return NUMBER;}
         const fnMatches = [...html.matchAll(/function \w+\(\)\{return (\d+);\}/g)];
         if (fnMatches.length < 2) return null;
         const k = parseInt(fnMatches[0][1]) + parseInt(fnMatches[1][1]);
 
-        // Encoded array: VARNAME=[[idx,"base64"],...]
-        const arrMatch = html.match(/=(\[\[\d+,"[^"]+"\](?:,\[\d+,"[^"]+"\])*\])/);
-        if (!arrMatch) return null;
+        // Extract the encoded array using bracket counting.
+        // Pattern in HTML: VARNAME=[[idx,"base64"],...]]
+        // where VARNAME is a random alphanumeric identifier (e.g., bO, YV, mN).
+        // Multiple variables may have [[ — pick the longest array (the actual data).
+        const varAssignRegex = /(\w+)=\[\[/g;
+        let bestMatch: RegExpExecArray | null = null;
+        let bestLen = 0;
+        let mArr: RegExpExecArray | null;
+        while ((mArr = varAssignRegex.exec(html)) !== null) {
+            const varName = mArr[1];
+            const firstBracket = mArr.index + varName.length + 1; // position of first [
+            let depth = 1;
+            let j = firstBracket + 1;
+            while (j < html.length && depth > 0) {
+                if (html[j] === '[') depth++;
+                else if (html[j] === ']') depth--;
+                j++;
+            }
+            const arrLen = j - firstBracket;
+            if (arrLen > bestLen) {
+                bestLen = arrLen;
+                bestMatch = mArr;
+            }
+        }
+        if (!bestMatch) return null;
+
+        const firstBracket = bestMatch.index + bestMatch[1].length + 1;
+        let depth = 1;
+        let i = firstBracket + 1;
+        while (i < html.length && depth > 0) {
+            if (html[i] === '[') depth++;
+            else if (html[i] === ']') depth--;
+            i++;
+        }
+        const arrayStr = html.slice(firstBracket, i);
 
         let pairs: [number, string][];
         try {
-            pairs = JSON.parse(arrMatch[1]);
+            pairs = JSON.parse(arrayStr) as [number, string][];
         } catch {
-            return null;
+            // Fallback: extract pairs via regex if JSON parse fails
+            const pairRegex = /\[(\d+),\"([^\"]+)\"\]/g;
+            const fallbackPairs: [number, string][] = [];
+            let m: RegExpExecArray | null;
+            while ((m = pairRegex.exec(arrayStr)) !== null) {
+                fallbackPairs.push([parseInt(m[1]), m[2]]);
+            }
+            if (!fallbackPairs.length) return null;
+            pairs = fallbackPairs;
         }
 
         pairs.sort((a, b) => a[0] - b[0]);
         let url = '';
         for (const [, v] of pairs) {
-            const decoded = Buffer.from(v, 'base64').toString();
+            // atob equivalent in Node.js: Buffer.from(base64, 'base64').toString('latin-1')
+            const decoded = Buffer.from(v, 'base64').toString('latin1');
             const digits = decoded.replace(/\D/g, '');
             if (!digits) continue;
             url += String.fromCharCode(parseInt(digits) - k);
@@ -281,7 +322,7 @@ export async function getEventStreams(links: string[]): Promise<{ url: string; n
                 'Referer': new URL(m3u8Url).origin + '/',
             });
             const channel = channelFromLink(link);
-            const name = channel ? `📡 ${channel}` : `Link ${i + 1}`;
+            const name = channel ? channel : `Link ${i + 1}`;
             return { url: `/proxy/hls/manifest.m3u8?token=${token}`, name };
         })
     );
