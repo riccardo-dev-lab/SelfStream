@@ -37,6 +37,9 @@ interface TennisStream {
 let scheduleCache: { data: TennisMatch[]; fetchedAt: number } | null = null;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// ── Tennis streams cache ──
+let streamsCache: { data: TennisStream[]; fetchedAt: number } | null = null;
+
 const USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 function matchAll(str: string, pattern: RegExp): RegExpExecArray[] {
@@ -560,32 +563,46 @@ async function resolveWatchSportsProvider(providerUrl: string): Promise<string |
 }
 
 // ──────────────────────────────────────────────
-// Main entry point: get all tennis streams
+// Helper: run async function with timeout
+// ──────────────────────────────────────────────
+async function withTimeout<T>(fn: () => Promise<T>, ms: number, fallback: T): Promise<T> {
+    return new Promise((resolve) => {
+        const timer = setTimeout(() => {
+            console.log(`[Tennis] Source timeout after ${ms}ms, using fallback`);
+            resolve(fallback);
+        }, ms);
+        fn().then(
+            (result) => { clearTimeout(timer); resolve(result); },
+            (err) => {
+                clearTimeout(timer);
+                console.error(`[Tennis] Source error after ${ms}ms:`, err?.message);
+                resolve(fallback);
+            }
+        );
+    });
+}
+
+// ──────────────────────────────────────────────
+// Source scrapers (return partial results on timeout)
 // ──────────────────────────────────────────────
 
-async function getTennisStreams(): Promise<TennisStream[]> {
+async function scrapeTennisSource(): Promise<TennisStream[]> {
     const streams: TennisStream[] = [];
-
-    // ── Source 1: tennistream.com ──
     try {
         console.log('[Tennis] Fetching tennistream.com schedule...');
         const matches = await fetchTennisSchedule();
         console.log(`[Tennis] tennistream.com: ${matches.length} matches`);
-
         for (const match of matches) {
             for (const channelUrl of match.channels) {
                 try {
                     const html = await fetchChannelPage(channelUrl);
                     if (!html) continue;
-
                     const playerSource = extractPlayerSource(html);
                     if (!playerSource) continue;
-
                     const token = makeProxyToken(playerSource, {
                         'User-Agent': USER_AGENT,
                         'Referer': 'https://tennistream.com/',
                     }, 30 * 60 * 1000);
-
                     streams.push({
                         url: `/proxy/tennis/iframe?token=${token}`,
                         name: `Tennis ${match.section}`,
@@ -599,24 +616,24 @@ async function getTennisStreams(): Promise<TennisStream[]> {
     } catch (err: any) {
         console.error('[Tennis] tennistream.com main error:', err?.message);
     }
+    return streams;
+}
 
-    // ── Source 2: watchsports.to ──
+async function scrapeWatchSportsSource(): Promise<TennisStream[]> {
+    const streams: TennisStream[] = [];
     try {
         console.log('[Tennis] Fetching watchsports.to...');
         const wsMatches = await fetchWatchSportsMatches();
         console.log(`[Tennis] watchsports.to: ${wsMatches.length} matches`);
-
         for (const wsMatch of wsMatches) {
             try {
                 const providers = await fetchWatchSportsStreamProviders(wsMatch.link);
                 console.log(`[Tennis] watchsports.to ${wsMatch.players}: ${providers.length} providers`);
-
                 for (const providerUrl of providers) {
                     const token = makeProxyToken(providerUrl, {
                         'User-Agent': USER_AGENT,
                         'Referer': 'https://watchsports.to/',
                     }, 30 * 60 * 1000);
-
                     const liveTag = wsMatch.live ? ' LIVE' : '';
                     streams.push({
                         url: `/proxy/tennis/iframe?token=${token}`,
@@ -631,27 +648,25 @@ async function getTennisStreams(): Promise<TennisStream[]> {
     } catch (err: any) {
         console.error('[Tennis] watchsports.to main error:', err?.message);
     }
+    return streams;
+}
 
-    // ── Source 3: dlhd.pk ──
+async function scrapeDlhdSource(): Promise<TennisStream[]> {
+    const streams: TennisStream[] = [];
     try {
         console.log('[Tennis] Fetching dlhd.pk...');
         const dlhdMatches = await fetchDlhdTennisMatches();
         console.log(`[Tennis] dlhd.pk: ${dlhdMatches.length} matches`);
-
         for (const dlhdMatch of dlhdMatches) {
-            // Use first few stream IDs for this match
             const streamIds = dlhdMatch.streamIds.slice(0, 4);
-
             for (const streamId of streamIds) {
                 try {
                     const playerUrl = await fetchDlhdStreamPage(streamId);
                     if (!playerUrl) continue;
-
                     const token = makeProxyToken(playerUrl, {
                         'User-Agent': USER_AGENT,
                         'Referer': 'https://dlhd.pk/',
                     }, 30 * 60 * 1000);
-
                     streams.push({
                         url: `/proxy/tennis/iframe?token=${token}`,
                         name: `DLHD Tennis`,
@@ -665,7 +680,46 @@ async function getTennisStreams(): Promise<TennisStream[]> {
     } catch (err: any) {
         console.error('[Tennis] dlhd.pk main error:', err?.message);
     }
+    return streams;
+}
 
+// ──────────────────────────────────────────────
+// Main entry point: parallel scraping with timeouts
+// ──────────────────────────────────────────────
+
+async function getTennisStreams(): Promise<TennisStream[]> {
+    // ── Return cached if available ──
+    const now = Date.now();
+    if (streamsCache && (now - streamsCache.fetchedAt) < CACHE_TTL) {
+        return streamsCache.data;
+    }
+
+    console.log('[Tennis] Starting parallel scraping (3 sources)...');
+
+    // Run all 3 sources in parallel with 12s timeout each
+    // Total ~12s max instead of ~36s sequential
+    const [tennisStreams, watchSportsStreams, dlhdStreams] = await Promise.allSettled([
+        withTimeout(scrapeTennisSource, 12000, []),
+        withTimeout(scrapeWatchSportsSource, 12000, []),
+        withTimeout(scrapeDlhdSource, 12000, []),
+    ]);
+
+    const streams: TennisStream[] = [];
+
+    if (tennisStreams.status === 'fulfilled') {
+        streams.push(...tennisStreams.value);
+    }
+    if (watchSportsStreams.status === 'fulfilled') {
+        streams.push(...watchSportsStreams.value);
+    }
+    if (dlhdStreams.status === 'fulfilled') {
+        streams.push(...dlhdStreams.value);
+    }
+
+    console.log(`[Tennis] Total streams: ${streams.length}`);
+
+    // ── Cache results ──
+    streamsCache = { data: streams, fetchedAt: Date.now() };
     return streams;
 }
 

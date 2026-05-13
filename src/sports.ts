@@ -51,18 +51,6 @@ export interface EncodedEvent {
 let scheduleCache: { data: any[]; fetchedAt: number } | null = null;
 const CACHE_TTL = 60 * 1000; // 1 minute
 
-const BLOCKED_SPORTS = new Set([
-    'Fútbol', 'Futbol', 'Soccer', 'Football', 'Calcio',
-    'American Football',
-    'Baseball', 'Béisbol',
-    'Snooker',
-    'Darts',
-    'Golf',
-    'Ice Hockey', 'Hockey',
-    'Cricket',
-    'Basketball', 'Baloncesto', 'NBA',
-]);
-
 function channelFromLink(link: string): string {
     try {
         const stream = new URL(link).searchParams.get('stream') || '';
@@ -133,12 +121,12 @@ function isPastEvent(time: string, live: boolean): boolean {
     if (!time) return false;
     const m = time.match(/^(\d{1,2}):(\d{2})$/);
     if (!m) return false;
-    const now = new Date();
     const evH = parseInt(m[1]), evM = parseInt(m[2]);
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
-    const evMinutes = evH * 60 + evM;
-    // Source times appear to be in UTC; filter if time has passed
-    return nowMinutes > evMinutes;
+    // Source times are in UTC; build a UTC date at 00:00 today, add event hours/minutes
+    const now = new Date();
+    const base = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+    const evTime = base.getTime() + evH * 3600000 + evM * 60000;
+    return evTime < Date.now();
 }
 
 export async function getSportEvents(): Promise<SportEventMeta[]> {
@@ -180,8 +168,6 @@ export async function getSportEvents(): Promise<SportEventMeta[]> {
 
     for (const [title, { links, channels, sport, time, live }] of eventMap) {
         if (isPastEvent(time, live)) continue;
-        if (BLOCKED_SPORTS.has(sport)) continue;
-
         const encoded: EncodedEvent = { t: title, s: sport, tm: time, l: links };
         const id = makeSportId(encoded);
         const emoji = SPORT_EMOJI[sport] || '🏆';

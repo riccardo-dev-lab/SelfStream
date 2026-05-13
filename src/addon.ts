@@ -85,7 +85,7 @@ const manifest = {
     background: 'https://blog.stremio.com/wp-content/uploads/2022/08/shino-1024x632.png',
     resources: ['stream', 'catalog', 'meta'],
     types: ['movie', 'series', 'anime', 'tv'],
-    idPrefixes: ['tmdb:', 'tt', 'kitsu:', 'sport:'],
+    idPrefixes: ['tmdb:', 'tt', 'kitsu:', 'sport:', 'tennis:'],
     catalogs: [
         {
             id: 'sports_live',
@@ -388,9 +388,29 @@ app.get([
     }
 });
 
-// ── Sports: Meta ──
+// ── Sports & Tennis: Meta ──
 app.get(['/meta/tv/:id.json', '/:config/meta/tv/:id.json'], async (req: any, res: any) => {
     const { id } = req.params;
+
+    // ── Tennis Meta ──
+    if (id.startsWith('tennis:')) {
+        try {
+            const data = JSON.parse(Buffer.from(id.slice('tennis:'.length), 'base64url').toString('utf8'));
+            return res.json({
+                meta: {
+                    id,
+                    type: 'tv',
+                    name: `🎾 ${data.match}`,
+                    description: `${data.time} · ${data.channels.length} canali`,
+                    genres: ['Tennis'],
+                }
+            });
+        } catch {
+            return res.json({ meta: null });
+        }
+    }
+
+    // ── Sports Meta ──
     if (!id.startsWith('sport:ev:')) return res.json({ meta: null });
     const decoded = decodeSportId(id);
     if (!decoded) return res.json({ meta: null });
@@ -433,26 +453,6 @@ app.get([
     } catch (e: any) {
         console.error('[Tennis Catalog] error:', e?.message);
         res.json({ metas: [] });
-    }
-});
-
-// ── Tennis: Meta ──
-app.get(['/meta/tv/tennis-*.json', '/:config/meta/tv/tennis-*.json'], async (req: any, res: any) => {
-    const { id } = req.params;
-    if (!id.startsWith('tennis:')) return res.json({ meta: null });
-    try {
-        const data = JSON.parse(Buffer.from(id.slice('tennis:'.length), 'base64url').toString('utf8'));
-        res.json({
-            meta: {
-                id,
-                type: 'tv',
-                name: `🎾 ${data.match}`,
-                description: `${data.time} · ${data.channels.length} canali`,
-                genres: ['Tennis'],
-            }
-        });
-    } catch {
-        res.json({ meta: null });
     }
 });
 
@@ -634,6 +634,37 @@ app.get('/proxy/cc/manifest.m3u8', async (req: any, res: any) => {
     } catch (e: any) {
         console.error('[CC Proxy] error:', e?.message || e);
         res.status(500).send('#EXTM3U\n# Internal error');
+    }
+});
+
+// ── Tennis: HTML Player Proxy ──
+app.get('/proxy/tennis/iframe', async (req: any, res: any) => {
+    try {
+        const token = req.query.token;
+        if (!token) return res.status(400).send('Missing token');
+
+        const decoded = decodeProxyToken(token);
+        if (!decoded) return res.status(400).send('Invalid token');
+
+        const playerUrl = decoded.u;
+        const { body, statusCode } = await request(playerUrl, {
+            headers: decoded.h,
+            headersTimeout: 8000,
+            bodyTimeout: 8000,
+        });
+
+        if (statusCode !== 200) {
+            await body.text();
+            return res.status(statusCode).send(`Player error: ${statusCode}`);
+        }
+
+        const html = await body.text();
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-store');
+        return res.send(html);
+    } catch (e: any) {
+        console.error('[Tennis Proxy] error:', e?.message || e);
+        res.status(500).send('Internal error');
     }
 });
 
