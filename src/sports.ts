@@ -605,6 +605,7 @@ async function fetchSchedule(): Promise<SportEventMeta[]> {
             links.push(getPlayerUrl(`ddl:${channelIds[0]}`));
         }
 
+        encoded.l = links.slice(0, 3);
         events.push({
             id: makeSportId(encoded),
             name: `📺 ${event}`,
