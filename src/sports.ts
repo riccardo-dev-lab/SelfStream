@@ -719,7 +719,7 @@ export async function getEventStreams(
 
             if (source === 'daddylive') {
                 // Extract channel ID from DaddyLive stream URL
-                const channelIdMatch = link.match(/\/live\/stream=(\d+)/);
+                const channelIdMatch = link.match(/\/live\/stream=([^/?&#]+)/);
                 if (channelIdMatch) {
                     resolvedUrl = await resolveDaddyLiveStream(channelIdMatch[1]);
                 }
@@ -741,15 +741,7 @@ export async function getEventStreams(
                     'Referer': source === 'daddylive' ? DADDYLIVE_BASE : FALCONSTREAMS_URL,
                 });
                 results.push({ url: `/proxy/hls/manifest.m3u8?token=${token}`, name: `Stream ${i + 1}` });
-                continue;
             }
-
-            // Fallback: proxy original URL
-            const token = makeProxyToken(link, {
-                'User-Agent': UA,
-                'Referer': source === 'daddylive' ? DADDYLIVE_BASE : FALCONSTREAMS_URL,
-            });
-            results.push({ url: `/proxy/hls/manifest.m3u8?token=${token}`, name: `Stream ${i + 1} (direct)` });
         } catch (err: any) {
             console.log(`[Sports] Stream ${i + 1} error:`, err.message);
         }
