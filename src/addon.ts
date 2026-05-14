@@ -124,7 +124,7 @@ async function handleStream(type: string, id: string, userConfig: UserConfig): P
             const decoded = decodeSportId(id);
             if (decoded) {
                 const source = decoded.src || 'falcon';
-                const streams = await getEventStreams(decoded.l || [], source);
+                const streams = await getEventStreams(decoded.l || [], source, decoded.h);
                 const emoji = SPORT_EMOJI[decoded.s] || '🏆';
                 for (const s of streams) {
                     allStreams.push({

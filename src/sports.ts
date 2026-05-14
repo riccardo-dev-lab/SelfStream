@@ -681,10 +681,34 @@ export function decodeSportId(id: string): EncodedEvent | null {
 }
 
 // ── Stream resolution for a specific event ──
-export async function getEventStreams(links: string[], source?: string): Promise<{ url: string; name: string }[]> {
-    if (!links || links.length === 0) return [];
-
+export async function getEventStreams(
+    links: string[],
+    source?: string,
+    embedHash?: string
+): Promise<{ url: string; name: string }[]> {
     const results: { url: string; name: string }[] = [];
+
+    // DaddyLive fallback: resolve from embedHash when links array is empty
+    if (source === 'daddylive' && (!links || links.length === 0) && embedHash) {
+        const channelIdMatch = embedHash.match(/^ddl:(.+)$/);
+        if (channelIdMatch) {
+            try {
+                const resolvedUrl = await resolveDaddyLiveStream(channelIdMatch[1]);
+                if (resolvedUrl) {
+                    const token = makeProxyToken(resolvedUrl, {
+                        'User-Agent': UA,
+                        'Referer': DADDYLIVE_BASE,
+                    });
+                    results.push({ url: `/proxy/hls/manifest.m3u8?token=${token}`, name: 'Stream 1' });
+                    return results;
+                }
+            } catch (err: any) {
+                console.log(`[Sports] DaddyLive hash resolution error:`, err.message);
+            }
+        }
+    }
+
+    if (!links || links.length === 0) return results;
 
     for (let i = 0; i < links.length && results.length < 3; i++) {
         const link = links[i];
