@@ -119,11 +119,12 @@ async function handleStream(type: string, id: string, userConfig: UserConfig): P
     const allStreams: any[] = [];
 
     try {
-        // ── Sport Live (StreamTP) ──
+        // ── Sport Live (multi-source) ──
         if (type === 'tv' && id.startsWith('sport:ev:') && userConfig.sportsEnabled) {
             const decoded = decodeSportId(id);
             if (decoded) {
-                const streams = await getEventStreams(decoded.l || []);
+                const source = decoded.src || 'falcon';
+                const streams = await getEventStreams(decoded.l || [], source);
                 const emoji = SPORT_EMOJI[decoded.s] || '🏆';
                 for (const s of streams) {
                     allStreams.push({
@@ -361,16 +362,25 @@ app.get([
     '/catalog/tv/sports_live/:extra.json',
     '/:config/catalog/tv/sports_live.json',
     '/:config/catalog/tv/sports_live/:extra.json',
-], async (req: any, res: any) => {
+  ], async (req: any, res: any) => {
     try {
         const extra: string = req.params.extra || '';
         const genreMatch = extra.match(/genre=([^&]+)/);
-        const genre = genreMatch ? decodeURIComponent(genreMatch[1]) : null;
-
+        let genre = genreMatch ? decodeURIComponent(genreMatch[1]) : null;
+        // Also support /:extra as genre directly (e.g., /La-Liga.json)
+        if (!genre && extra && !extra.startsWith('genre=')) {
+            genre = extra;
+        }
+        // If genre is still null, get all events
         let events = await getSportEvents();
         if (genre) {
-            events = events.filter(ev => ev.sport === genre ||
-                ev.sport.toLowerCase() === genre.toLowerCase());
+            const normalizedGenre = genre.replace(/-/g, ' ').toLowerCase();
+            events = events.filter(ev => {
+                const normalizedSport = ev.sport.toLowerCase();
+                return normalizedSport === normalizedGenre ||
+                    normalizedSport.includes(normalizedGenre) ||
+                    normalizedGenre.includes(normalizedSport);
+            });
         }
 
         const metas = events.map(ev => ({
@@ -378,6 +388,7 @@ app.get([
             type: 'tv',
             name: ev.name,
             description: ev.description,
+            sport: ev.sport,
             genres: [ev.sport],
         }));
         res.setHeader('Cache-Control', 'no-store');
@@ -385,6 +396,37 @@ app.get([
     } catch (e: any) {
         console.error('[Sports Catalog] error:', e?.message);
         res.json({ metas: [] });
+    }
+});
+
+// ── Sports: HTML Player Proxy ──
+app.get('/proxy/sports/iframe', async (req: any, res: any) => {
+    try {
+        const token = req.query.token;
+        if (!token) return res.status(400).send('Missing token');
+
+        const decoded = decodeProxyToken(token);
+        if (!decoded) return res.status(400).send('Invalid token');
+
+        const playerUrl = decoded.u;
+        const { body, statusCode } = await request(playerUrl, {
+            headers: decoded.h,
+            headersTimeout: 8000,
+            bodyTimeout: 8000,
+        });
+
+        if (statusCode !== 200) {
+            await body.text();
+            return res.status(statusCode).send(`Player error: ${statusCode}`);
+        }
+
+        const html = await body.text();
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-store');
+        return res.send(html);
+    } catch (e: any) {
+        console.error('[Sports Proxy] error:', e?.message || e);
+        res.status(500).send('Internal error');
     }
 });
 
